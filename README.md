@@ -486,6 +486,80 @@ mv /usr/lib64/python2.7/site-packages/OpenSSL /usr/lib64/python2.7/site-packages
 
 <img src="README.assets/image-20201030013306301.png" alt="image-20201030013306301" style="zoom: 33%;" />
 
+## Nginx原理
+
+<img src="README.assets/v2-e471baf7b5160884fedc77c54242344c_1440w.jpg" alt="img" style="zoom:50%;" />
+
+### Nginx进程管理信号
+
+Nginx master和worker节点通过信号进行通信，worker间使用共享内存
+
+1. Master进程
+   监控worker进程 CHLD
+   管理workder进程：
+       接收信号 TERM,INT,QUIT,HUP,USR1,USR2,WINCH
+2. Worker进程
+   接收信号 TERM,INT,QUIT,USR1,WINCH
+3. nginx命令行
+   reload: HUP
+   reopen: USR1
+   stop: TERM
+   quit: QUIT
+
+### reload流程
+
+1. 向master发送HUP信号
+2. master语法校验
+3. 打开新的监听端口
+4. 新配置启动worker子进程
+5. 向老worker发送QUIT信号
+6. 老worker关闭监听句柄，处理完当前连接后结束进程
+
+### 热部署
+
+1. 升级nginx文件，旧文件备份nginx.old
+2. 向master发送USR2信号
+3. master修改pid文件名，加后缀.oldbin
+4. master利用新nginx启动新master进程
+5. 向老master发送QUIT
+6. 回滚：向老master发送HUP，新master发送QUIT
+
+### work进程优雅关闭
+
+仅针对http请求，tcp协议、websocket协议等无法判断是否结束
+
+1. 设置定时器worker_shutdown_timeout
+2. 关闭监听句柄
+3. 关闭空闲连接
+4. 循环等待全部连接关闭
+5. 退出进程
+
+### Nginx事件与网络收发
+
+<img src="README.assets/image-20201030101830685.png" alt="image-20201030101830685" style="zoom: 33%;" />
+
+nginx采用epoll，原理：
+https://zhuanlan.zhihu.com/p/63179839
+https://www.youtube.com/watch?v=4gv9reEaD7g
+
+<img src="README.assets/image-20201030111425461.png" alt="image-20201030111425461" style="zoom:50%;" />
+
+select需要遍历socket对应的fd ，复制遍历***轮询***判断是否有输入数据，效率慢。
+
+epoll减少复制过程，和kernel共有epollpoll，采用***事件通知***方式通知kernel，就序列表采用双向链表来实现；监视的soket采用红黑树作为索引结构
+
+
+
+## Tengine Slab内存管理
+
+ngx_slab_stat 支持：下载tengine，并configure 添加module
+
+```shell
+./configure --add-module=../tengine-2.2.2/modules/ngx_slab_stat
+```
+
+
+
 
 
 ## Fin
